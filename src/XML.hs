@@ -96,7 +96,8 @@ backpos fpx' pos' = do
 back1 :: ((NezParserContext)->(Int) -> S.State NezParserContext (Bool))
 back1 fpx' pos' = do
   px' <- S.get
-  S.put $ px' {pos = (S.evalState (backpos px' pos') px')}
+  let (v,s) = S.runState (backpos px' pos') px'
+  S.put $ s {pos = v}
   return (True)
 
 not1 :: ((NezParserContext)->(((NezParserContext) -> S.State NezParserContext (Bool))) -> S.State NezParserContext (Bool))
@@ -138,14 +139,14 @@ logT fpx' lop' lpos' tree' = do
 linkT :: ((NezParserContext)->(Int)->(AST) -> S.State NezParserContext (Bool))
 linkT fpx' nlabel' tree' = do
   px' <- S.get
-  return ((S.evalState (logT px' (3) nlabel' tree') px'))
+  (logT px' (3) nlabel' tree')
 
 backLink :: ((NezParserContext)->((Maybe (TreeLog)))->(Int)->(AST) -> S.State NezParserContext (Bool))
 backLink fpx' treeLog' nlabel' tree' = do
   px' <- S.get
   let ltree' = (tree px')
   S.put $ px' {treeLog = treeLog', tree = tree'}
-  return ((S.evalState (linkT px' nlabel' ltree') px'))
+  (linkT px' nlabel' ltree')
 
 link2 :: ((NezParserContext)->(Int)->(((NezParserContext) -> S.State NezParserContext (Bool))) -> S.State NezParserContext (Bool))
 link2 fpx' nlabel' f' = do
@@ -166,12 +167,12 @@ many3 fpx' f' = do
   let pos' = (pos px')
   let treeLog' = (treeLog px')
   let tree' = (tree px')
-  (f' px',px') <?> (many3 px' f', back3 px' pos' treeLog' tree')
+  (f' px', trace "many3" px') <?> ( many3 px' f', back3 px' pos' treeLog' tree')
 
 tagT :: ((NezParserContext)->(Int) -> S.State NezParserContext (Bool))
 tagT fpx' ntag' = do
   px' <- S.get
-  return ((S.evalState (logT px' (1) ntag' (tree px')) px'))
+  (logT px' (1) ntag' (tree px'))
 
 gettag :: ((Int) -> S.State (NezParserContext) (String))
 gettag ntag' = do
@@ -218,7 +219,7 @@ longkey key' mpoint' = do
 getMemo :: ((NezParserContext)->(Int64) -> S.State NezParserContext (MemoEntry))
 getMemo fpx' key' = do
   px' <- S.get
-  return (((memos px') Ar.! (fromIntegral (key' % (fromIntegral ((257)))))))
+  return (((memos px') Ar.! (fromIntegral (key' % 257))))
 
 consumeM2 :: ((NezParserContext)->(MemoEntry) -> S.State NezParserContext (Int))
 consumeM2 fpx' m' = do
@@ -230,17 +231,17 @@ lookupM2 :: ((NezParserContext)->(Int) -> S.State NezParserContext (Int))
 lookupM2 fpx' mpoint' = do
   px' <- S.get
   let (key',s1) = (S.runState (longkey (fromIntegral ((pos px'))) mpoint') px')
-  let (m',s2)  = (S.runState (getMemo px' key') px')
+  let (m',s2)  = (S.runState (getMemo px' key') s1)
   S.put s2
   if key m' == key' then (consumeM2 px' m') else return 2
 
 storeM :: ((NezParserContext)->(Int)->(Int)->(Bool) -> S.State (NezParserContext) Bool)
 storeM fpx' memoPoint' pos' matched' = do
   px' <- S.get
-  let oldmemo = trace (show (Ar.head (memos px'))) memos px'
+  let oldmemo = memos px'
   let (key',s1) = (S.runState (longkey (fromIntegral pos') memoPoint') px')
   let (m', s2) = (S.runState (getMemo px' (trace (show key') key')) s1)
-  S.put $ px' {memos =  rewriteList oldmemo (key' % 257) (m' {key = key', result = if matched' then 1 else 0, mpos = if matched' then pos px' else pos', mtree = tree px', mstate = (state px')})}
+  S.put $ s2 {memos = rewriteList oldmemo (key' % 257) (m' {key = key', result = if matched' then 1 else 0, mpos = if matched' then pos s2 else pos', mtree = tree s2, mstate = (state s2)})}
   return (matched')
   where
     rewriteList xs i v = let k = fromIntegral i in Ar.update xs (Ar.singleton (trace (show k) k,v))
@@ -250,7 +251,7 @@ memo2 fpx' mpoint' f' = do
   px' <- S.get
   let pos' = (pos px')
   let (cond,s0) = ((S.runState (lookupM2 px' mpoint') px'))
-  case cond of
+  case (cond) of
     1 -> S.put s0 >> return (True)
     2 -> let (v,s1) = S.runState (f' px') s0 in S.put s1 >> storeM px' mpoint' pos' v
     _ -> S.put s0 >> return (False)

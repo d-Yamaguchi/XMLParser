@@ -8,7 +8,7 @@ import qualified Control.Monad.State as S
 import Control.Applicative
 
 main :: IO ()
-main = readFile "./xmarks.xml" >>= print . Tst.parseText
+main = print $ Tst.parseText testdate
 
 {-}
 charset180 = [True,False]
@@ -26,3 +26,5 @@ many9 fpx' f' = do
 
 e0 = S.evalState (e10 0) 0
 -}
+
+testdate = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><note><to>Tove</to><from>Jani</from><heading>Reminder</heading><body>Don't forget me this weekend!</body></note>"
