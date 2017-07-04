@@ -31,6 +31,7 @@ executable Nezcc-exe
   build-depends:       base
                      , ghc-mod
                      , mtl
+                     , time
                      , bytestring
                      , Nezcc
   default-language:    Haskell2010
